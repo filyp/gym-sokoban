@@ -1,5 +1,5 @@
 from .sokoban_env import SokobanEnv
-from .render_utils import room_to_rgb
+from .render_utils import room_to_rgb, room_to_tiny_world_rgb
 import os
 from os import listdir
 from os.path import isfile, join
@@ -10,44 +10,50 @@ import random
 import numpy as np
 
 class BoxobanEnv(SokobanEnv):
-    num_boxes = 4
-    dim_room=(10, 10)
-
-    def __init__(self,
-             max_steps=120,
-             difficulty='unfiltered', split='train'):
+    def __init__(self, difficulty='unfiltered', split='train', custom_maps=None, curriculum_cutoff=1, **kwargs):
         self.difficulty = difficulty
         self.split = split
+        self.custom_maps = custom_maps
+        self.curriculum_cutoff = curriculum_cutoff
+
         self.verbose = False
-        super(BoxobanEnv, self).__init__(self.dim_room, max_steps, self.num_boxes, None)
+        super(BoxobanEnv, self).__init__(
+            dim_room=(10, 10),
+            num_boxes=4,
+            **kwargs,
+        )
         
-
     def reset(self):
-        self.cache_path = '.sokoban_cache'
-        self.train_data_dir = os.path.join(self.cache_path, 'boxoban-levels-master', self.difficulty, self.split)
+        if self.custom_maps is None:
+            # use DeepMind's pre-generated levels
+            self.cache_path = '.sokoban_cache'
+            self.train_data_dir = os.path.join(self.cache_path, 'boxoban-levels-master', self.difficulty, self.split)
 
-        if not os.path.exists(self.cache_path):
-           
-            url = "https://github.com/deepmind/boxoban-levels/archive/master.zip"
-            
-            if self.verbose:
-                print('Boxoban: Pregenerated levels not downloaded.')
-                print('Starting download from "{}"'.format(url))
+            if not os.path.exists(self.cache_path):
+               
+                url = "https://github.com/deepmind/boxoban-levels/archive/master.zip"
+                
+                if self.verbose:
+                    print('Boxoban: Pregenerated levels not downloaded.')
+                    print('Starting download from "{}"'.format(url))
 
-            response = requests.get(url, stream=True)
+                response = requests.get(url, stream=True)
 
-            if response.status_code != 200:
-                raise "Could not download levels from {}. If this problem occurs consistantly please report the bug under https://github.com/mpSchrader/gym-sokoban/issues. ".format(url)
+                if response.status_code != 200:
+                    raise "Could not download levels from {}. If this problem occurs consistantly please report the bug under https://github.com/mpSchrader/gym-sokoban/issues. ".format(url)
 
-            os.makedirs(self.cache_path)
-            path_to_zip_file = os.path.join(self.cache_path, 'boxoban_levels-master.zip')
-            with open(path_to_zip_file, 'wb') as handle:
-                for data in tqdm(response.iter_content()):
-                    handle.write(data)
+                os.makedirs(self.cache_path)
+                path_to_zip_file = os.path.join(self.cache_path, 'boxoban_levels-master.zip')
+                with open(path_to_zip_file, 'wb') as handle:
+                    for data in tqdm(response.iter_content()):
+                        handle.write(data)
 
-            zip_ref = zipfile.ZipFile(path_to_zip_file, 'r')
-            zip_ref.extractall(self.cache_path)
-            zip_ref.close()
+                zip_ref = zipfile.ZipFile(path_to_zip_file, 'r')
+                zip_ref.extractall(self.cache_path)
+                zip_ref.close()
+        else:
+            # don't download DeepMind's levels, use custom levels
+            self.train_data_dir = self.custom_maps
         
         self.select_room()
 
@@ -55,9 +61,12 @@ class BoxobanEnv(SokobanEnv):
         self.reward_last = 0
         self.boxes_on_target = 0
 
-        starting_observation = room_to_rgb(self.room_state, self.room_fixed)
+        if self.use_tiny_world:
+            starting_observation = room_to_tiny_world_rgb(self.room_state, self.room_fixed)
+        else:
+            starting_observation = room_to_rgb(self.room_state, self.room_fixed)
 
-        return starting_observation
+        return starting_observation, {}
 
     def select_room(self):
         
@@ -77,13 +86,14 @@ class BoxobanEnv(SokobanEnv):
         
         maps.append(current_map)
 
+        maps = maps[:self.curriculum_cutoff]
         selected_map = random.choice(maps)
 
         if self.verbose:
             print('Selected Level from File "{}"'.format(source_file))
 
         self.room_fixed, self.room_state, self.box_mapping = self.generate_room(selected_map)
-
+        assert self.room_fixed.shape == self.dim_room
 
     def generate_room(self, select_map):
         room_fixed = []
@@ -101,7 +111,6 @@ class BoxobanEnv(SokobanEnv):
                     room_s.append(0)
 
                 elif e == '@':
-                    self.player_position = np.array([len(room_fixed), len(room_f)])
                     room_f.append(1)
                     room_s.append(5)
 
@@ -126,8 +135,21 @@ class BoxobanEnv(SokobanEnv):
 
         # used for replay in room generation, unused here because pre-generated levels
         box_mapping = {}
+        room_fixed = np.array(room_fixed)
+        room_state = np.array(room_state)
 
-        return np.array(room_fixed), np.array(room_state), box_mapping
+        # random flip
+        if np.random.choice([True, False]):
+            room_fixed = np.fliplr(room_fixed)
+            room_state = np.fliplr(room_state)
+        # random rotation
+        _rot = np.random.choice([0,1,2,3])
+        room_fixed = np.rot90(room_fixed, k=_rot)
+        room_state = np.rot90(room_state, k=_rot)
+
+        # check at which index in room_state 5 (player) is
+        self.player_position = np.argwhere(room_state == 5)[0]
+        return room_fixed, room_state, box_mapping
 
 
 

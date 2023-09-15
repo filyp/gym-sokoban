@@ -1,7 +1,7 @@
-import gym
-from gym.utils import seeding
-from gym.spaces.discrete import Discrete
-from gym.spaces import Box
+import gymnasium as gym
+from gymnasium.utils import seeding
+from gymnasium.spaces.discrete import Discrete
+from gymnasium.spaces import Box
 from .room_utils import generate_room
 from .render_utils import room_to_rgb, room_to_tiny_world_rgb
 import numpy as np
@@ -13,7 +13,7 @@ class SokobanEnv(gym.Env):
                  scale=10,
                  max_steps=120,
                  num_boxes=4,
-                 use_tiny_world=False,
+                 use_tiny_world=True,
                  num_gen_steps=None,
                  render_mode='rgb_array',
                  reset=True):
@@ -53,12 +53,15 @@ class SokobanEnv(gym.Env):
         self.viewer = None
         self.max_steps = max_steps
         self.action_space = Discrete(len(ACTION_LOOKUP))
-        screen_height, screen_width = (dim_room[0] * 16, dim_room[1] * 16)
-        self.observation_space = Box(low=0, high=255, shape=(screen_height, screen_width, 3), dtype=np.uint8)
+        if self.use_tiny_world:
+            self.observation_space = Box(low=0, high=255, shape=(dim_room[0], dim_room[1], 3), dtype=np.uint8)
+        else:
+            screen_height, screen_width = (dim_room[0] * 16, dim_room[1] * 16)
+            self.observation_space = Box(low=0, high=255, shape=(screen_height, screen_width, 3), dtype=np.uint8)
         
         if reset:
             # Initialize Room
-            _ = self.reset(None)
+            _ = self.reset()
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
