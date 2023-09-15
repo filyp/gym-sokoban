@@ -16,7 +16,7 @@ setup(
       long_description=long_description,
       long_description_content_type="text/markdown",
        url="https://github.com/mpSchrader/gym-sokoban",
-      install_requires=['gym>=0.2.3', 'numpy>=1.14.1', 'tqdm>=4.32.1', 'imageio>=2.3.0', 'requests>=2.22.0'],
+      install_requires=['gymnasium>=0.26', 'numpy>=1.14.1', 'tqdm>=4.32.1', 'imageio>=2.3.0', 'requests>=2.22.0'],
       packages=find_packages(),
       package_data={
       'gym_sokoban': ['envs/*', 'envs/surface/*', 'envs/surface/*/*'],
