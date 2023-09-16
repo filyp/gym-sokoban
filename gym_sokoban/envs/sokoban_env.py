@@ -7,7 +7,6 @@ from .render_utils import room_to_rgb, room_to_tiny_world_rgb
 import numpy as np
 
 class SokobanEnv(gym.Env):
-
     def __init__(self,
                  dim_room=(10, 10),
                  scale=10,
@@ -103,8 +102,12 @@ class SokobanEnv(gym.Env):
         if done:
             info["maxsteps_used"] = self._check_if_maxsteps()
             info["all_boxes_on_target"] = self._check_if_all_boxes_on_target()
+            self.when_done_callback()
 
         return observation, self.reward_last, done, False, info
+    
+    def when_done_callback(self):
+        pass
 
     def _push(self, action):
         """

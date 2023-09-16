@@ -15,6 +15,7 @@ class BoxobanEnv(SokobanEnv):
         self.split = split
         self.custom_maps = custom_maps
         self.curriculum_cutoff = curriculum_cutoff
+        self.steps_per_level = dict()
 
         self.verbose = False
         super(BoxobanEnv, self).__init__(
@@ -86,8 +87,13 @@ class BoxobanEnv(SokobanEnv):
         
         maps.append(current_map)
 
-        maps = maps[:self.curriculum_cutoff]
-        selected_map = random.choice(maps)
+        # use triangular distribution, to spend more time on challenging levels
+        map_index = int(np.random.triangular(0, self.curriculum_cutoff, self.curriculum_cutoff))
+        if map_index >= len(maps):
+            map_index = np.random.choice(len(maps))
+            print('Warning: map_index out of bounds, using random map instead.')
+        self.map_index = map_index
+        selected_map = maps[map_index]
 
         if self.verbose:
             print('Selected Level from File "{}"'.format(source_file))
@@ -114,7 +120,6 @@ class BoxobanEnv(SokobanEnv):
                     room_f.append(1)
                     room_s.append(5)
 
-
                 elif e == '$':
                     boxes.append((len(room_fixed), len(room_f)))
                     room_f.append(1)
@@ -131,7 +136,6 @@ class BoxobanEnv(SokobanEnv):
 
             room_fixed.append(room_f)
             room_state.append(room_s)
-
 
         # used for replay in room generation, unused here because pre-generated levels
         box_mapping = {}
@@ -150,6 +154,12 @@ class BoxobanEnv(SokobanEnv):
         # check at which index in room_state 5 (player) is
         self.player_position = np.argwhere(room_state == 5)[0]
         return room_fixed, room_state, box_mapping
+    
+    def when_done_callback(self):
+        if self.map_index not in self.steps_per_level:
+            self.steps_per_level[self.map_index] = []
+        self.steps_per_level[self.map_index].append(self.num_env_steps)
+        
 
 
 
