@@ -8,9 +8,9 @@ import numpy as np
 
 class SokobanEnv(gym.Env):
     def __init__(self,
-                 dim_room=(10, 10),
+                 dim_room=(7, 7),
                  scale=10,
-                 max_steps=120,
+                 max_steps=120, # this has no effect now
                  num_boxes=4,
                  use_tiny_world=True,
                  num_gen_steps=None,
@@ -41,7 +41,7 @@ class SokobanEnv(gym.Env):
         self.clock = None
 
         # Penalties and Rewards
-        self.penalty_for_step = -0.1
+        self.penalty_for_step = -0.5
         self.penalty_box_off_target = -1
         self.reward_box_on_target = 1
         self.reward_finished = 10
@@ -52,11 +52,7 @@ class SokobanEnv(gym.Env):
         self.viewer = None
         self.max_steps = max_steps
         self.action_space = Discrete(len(ACTION_LOOKUP))
-        if self.use_tiny_world:
-            self.observation_space = Box(low=0, high=255, shape=(dim_room[0], dim_room[1], 3), dtype=np.uint8)
-        else:
-            screen_height, screen_width = (dim_room[0] * 16, dim_room[1] * 16)
-            self.observation_space = Box(low=0, high=255, shape=(screen_height, screen_width, 3), dtype=np.uint8)
+        self.observation_space = Box(low=0, high=255, shape=(dim_room[0]-2, dim_room[1]-2, 3), dtype=np.uint8)
         
         if reset:
             # Initialize Room
@@ -92,7 +88,7 @@ class SokobanEnv(gym.Env):
         done = self._check_if_done()
 
         # Convert the observation to RGB frame
-        observation = self.get_image(self.scale)
+        observation = self.get_image()
 
         info = {
             "action.name": ACTION_LOOKUP[action],
@@ -239,7 +235,7 @@ class SokobanEnv(gym.Env):
         return starting_observation, {}
 
     def render(self):
-        img = self.get_image(self.scale)
+        img = self.get_image()
 
         # repeat to scale up
         img = np.repeat(img, self.scale, axis=0)
@@ -247,21 +243,21 @@ class SokobanEnv(gym.Env):
 
         return img
 
-    def get_image(self, scale=1):
+    def get_image(self):
         
         if self.use_tiny_world:
             img = room_to_tiny_world_rgb(self.room_state, self.room_fixed)
         else:
             img = room_to_rgb(self.room_state, self.room_fixed)
+        
+        # cut off the borders
+        img = img[1:-1, 1:-1, :]
 
         return img
 
     def close(self):
         if self.viewer is not None:
             self.viewer.close()
-
-    def set_maxsteps(self, num_steps):
-        self.max_steps = num_steps
 
     def get_action_lookup(self):
         return ACTION_LOOKUP

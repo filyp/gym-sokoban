@@ -10,16 +10,16 @@ import random
 import numpy as np
 
 class BoxobanEnv(SokobanEnv):
-    def __init__(self, difficulty='unfiltered', split='train', custom_maps=None, curriculum_cutoff=1, **kwargs):
+    def __init__(self, difficulty='unfiltered', split='train', custom_maps=None, **kwargs):
         self.difficulty = difficulty
         self.split = split
         self.custom_maps = custom_maps
-        self.curriculum_cutoff = curriculum_cutoff
-        self.steps_per_level = dict()
+        self.max_episode_steps = 10  # TODO should be fetched from gym
+        self.curriculum_scores = [self.max_episode_steps]  
 
         self.verbose = False
         super(BoxobanEnv, self).__init__(
-            dim_room=(10, 10),
+            dim_room=(7, 7),
             num_boxes=4,
             **kwargs,
         )
@@ -62,10 +62,7 @@ class BoxobanEnv(SokobanEnv):
         self.reward_last = 0
         self.boxes_on_target = 0
 
-        if self.use_tiny_world:
-            starting_observation = room_to_tiny_world_rgb(self.room_state, self.room_fixed)
-        else:
-            starting_observation = room_to_rgb(self.room_state, self.room_fixed)
+        starting_observation = self.get_image()
 
         return starting_observation, {}
 
@@ -86,12 +83,33 @@ class BoxobanEnv(SokobanEnv):
                     current_map.append(line.strip())
         
         maps.append(current_map)
+        
+        if len(self.curriculum_scores) > len(maps):
+            self.curriculum_scores = self.curriculum_scores[:len(maps)]
+        
+        # choose map with probability proportional to the score**2
+        _sc = (np.array(self.curriculum_scores))**2
+        probs = _sc / np.sum(_sc)
+        map_index = np.random.choice(
+            len(self.curriculum_scores), 
+            p=probs,
+        )
 
-        # use triangular distribution, to spend more time on challenging levels
-        map_index = int(np.random.triangular(0, self.curriculum_cutoff, self.curriculum_cutoff))
-        if map_index >= len(maps):
-            map_index = np.random.choice(len(maps))
-            print('Warning: map_index out of bounds, using random map instead.')
+        # # with probability epsilon choose a random map
+        # # otherwise choose among the unsolved maps
+        # epsilon = 0.1
+        # if np.random.rand() < epsilon:
+        #     map_index = np.random.choice(len(self.curriculum_scores))
+        # else:
+        #     is_not_solved = np.array(self.curriculum_scores) == self.max_episode_steps
+        #     if np.sum(is_not_solved) == 0:
+        #         map_index = np.random.choice(len(self.curriculum_scores))
+        #     else:
+        #         # choose among the unsolved maps
+        #         maps_to_choose_from = np.arange(len(self.curriculum_scores))[is_not_solved]
+        #         map_index = np.random.choice(maps_to_choose_from)
+
+        # print(map_index)
         self.map_index = map_index
         selected_map = maps[map_index]
 
@@ -156,9 +174,7 @@ class BoxobanEnv(SokobanEnv):
         return room_fixed, room_state, box_mapping
     
     def when_done_callback(self):
-        if self.map_index not in self.steps_per_level:
-            self.steps_per_level[self.map_index] = []
-        self.steps_per_level[self.map_index].append(self.num_env_steps)
+        self.curriculum_scores[self.map_index] = self.num_env_steps
         
 
 
