@@ -10,10 +10,10 @@ import random
 import numpy as np
 
 class SokobanUncertainEnv(SokobanEnv):
-    def __init__(self, difficulty='unfiltered', split='train', custom_maps=None, curriculum_cutoff=1, **kwargs):
+    def __init__(self, custom_maps, difficulty='unfiltered', split='train', curriculum_cutoff=1, **kwargs):
+        self.train_data_dir = custom_maps
         self.difficulty = difficulty
         self.split = split
-        self.custom_maps = custom_maps
         self.max_episode_steps = 10  # TODO should be fetched from gym
         self.curriculum_scores = [self.max_episode_steps] * curriculum_cutoff
 
@@ -25,37 +25,6 @@ class SokobanUncertainEnv(SokobanEnv):
         )
         
     def reset(self):
-        if self.custom_maps is None:
-            # use DeepMind's pre-generated levels
-            self.cache_path = '.sokoban_cache'
-            self.train_data_dir = os.path.join(self.cache_path, 'boxoban-levels-master', self.difficulty, self.split)
-
-            if not os.path.exists(self.cache_path):
-               
-                url = "https://github.com/deepmind/boxoban-levels/archive/master.zip"
-                
-                if self.verbose:
-                    print('Boxoban: Pregenerated levels not downloaded.')
-                    print('Starting download from "{}"'.format(url))
-
-                response = requests.get(url, stream=True)
-
-                if response.status_code != 200:
-                    raise "Could not download levels from {}. If this problem occurs consistantly please report the bug under https://github.com/mpSchrader/gym-sokoban/issues. ".format(url)
-
-                os.makedirs(self.cache_path)
-                path_to_zip_file = os.path.join(self.cache_path, 'boxoban_levels-master.zip')
-                with open(path_to_zip_file, 'wb') as handle:
-                    for data in tqdm(response.iter_content()):
-                        handle.write(data)
-
-                zip_ref = zipfile.ZipFile(path_to_zip_file, 'r')
-                zip_ref.extractall(self.cache_path)
-                zip_ref.close()
-        else:
-            # don't download DeepMind's levels, use custom levels
-            self.train_data_dir = self.custom_maps
-        
         self.select_room()
 
         self.num_env_steps = 0
