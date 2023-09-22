@@ -9,8 +9,7 @@ import numpy as np
 class SokobanEnv(gym.Env):
     def __init__(self,
                  dim_room=(7, 7),
-                 scale=10,
-                 max_steps=120, # this has no effect now
+                #  max_steps=120, # this has no effect now
                  num_boxes=4,
                  use_tiny_world=True,
                  num_gen_steps=None,
@@ -33,7 +32,6 @@ class SokobanEnv(gym.Env):
         self.boxes_on_target = 0
 
         # Rendering variables
-        self.scale = scale
         self.render_mode = render_mode
         self.screen_size = (500, 500)
 
@@ -50,7 +48,7 @@ class SokobanEnv(gym.Env):
         # Other Settings
         self.use_tiny_world = use_tiny_world
         self.viewer = None
-        self.max_steps = max_steps
+        # self.max_steps = max_steps
         self.action_space = Discrete(len(ACTION_LOOKUP))
         self.observation_space = Box(low=0, high=255, shape=(dim_room[0]-2, dim_room[1]-2, 3), dtype=np.uint8)
         
@@ -85,7 +83,7 @@ class SokobanEnv(gym.Env):
 
         self._calc_reward()
         
-        done = self._check_if_done()
+        done = self._check_if_all_boxes_on_target()
 
         # Convert the observation to RGB frame
         observation = self.get_image()
@@ -96,8 +94,8 @@ class SokobanEnv(gym.Env):
             "action.moved_box": moved_box,
         }
         if done:
-            info["maxsteps_used"] = self._check_if_maxsteps()
-            info["all_boxes_on_target"] = self._check_if_all_boxes_on_target()
+            # info["maxsteps_used"] = self._check_if_maxsteps()
+            info["all_boxes_on_target"] = True
             self.when_done_callback()
 
         return observation, self.reward_last, done, False, info
@@ -117,29 +115,29 @@ class SokobanEnv(gym.Env):
         current_position = self.player_position.copy()
 
         # No push, if the push would get the box out of the room's grid
+        # this section if probably unneeded bc we have the boundary walls
         new_box_position = new_position + change
         if new_box_position[0] >= self.room_state.shape[0] \
                 or new_box_position[1] >= self.room_state.shape[1]:
             return False, False
 
-
-        can_push_box = self.room_state[new_position[0], new_position[1]] in [3, 4]
-        can_push_box &= self.room_state[new_box_position[0], new_box_position[1]] in [1, 2]
+        can_push_box = self.room_state[new_position[0], new_position[1]] in ["A", "B", "C"]
+        can_push_box &= self.room_state[new_box_position[0], new_box_position[1]] == " "
         if can_push_box:
+            box_type = self.room_state[new_position[0], new_position[1]]
 
             self.new_box_position = tuple(new_box_position)
             self.old_box_position = tuple(new_position)
 
             # Move Player
             self.player_position = new_position
-            self.room_state[(new_position[0], new_position[1])] = 5
-            self.room_state[current_position[0], current_position[1]] = \
-                self.room_fixed[current_position[0], current_position[1]]
+            self.room_state[(new_position[0], new_position[1])] = "@"
+            self.room_state[current_position[0], current_position[1]] = " "
 
             # Move Box
-            box_type = 4
-            if self.room_fixed[new_box_position[0], new_box_position[1]] == 2:
-                box_type = 3
+            # box_type = 4
+            # if self.room_fixed[new_box_position[0], new_box_position[1]] == 2:
+            #     box_type = 3
             self.room_state[new_box_position[0], new_box_position[1]] = box_type
             return True, True
 
@@ -159,11 +157,10 @@ class SokobanEnv(gym.Env):
 
         # Move player if the field in the moving direction is either
         # an empty field or an empty box target.
-        if self.room_state[new_position[0], new_position[1]] in [1, 2]:
+        if self.room_state[new_position[0], new_position[1]] == " ":
             self.player_position = new_position
-            self.room_state[(new_position[0], new_position[1])] = 5
-            self.room_state[current_position[0], current_position[1]] = \
-                self.room_fixed[current_position[0], current_position[1]]
+            self.room_state[(new_position[0], new_position[1])] = "@"
+            self.room_state[current_position[0], current_position[1]] = " "
 
             return True
 
@@ -199,19 +196,16 @@ class SokobanEnv(gym.Env):
         
         self.boxes_on_target = current_boxes_on_target
 
-    def _check_if_done(self):
-        # Check if the game is over either through reaching the maximum number
-        # of available steps or by pushing all boxes on the targets.        
-        return self._check_if_all_boxes_on_target() or self._check_if_maxsteps()
-
     def _check_if_all_boxes_on_target(self):
-        empty_targets = self.room_state == 2
-        player_hiding_target = (self.room_fixed == 2) & (self.room_state == 5)
-        are_all_boxes_on_targets = np.where(empty_targets | player_hiding_target)[0].shape[0] == 0
-        return are_all_boxes_on_targets
+        for box_type in ["A", "B", "C"]:
+            boxes = box_type == self.room_state
+            targets = box_type.lower() == self.room_fixed
+            unhomed_boxes = boxes & (~targets)
+            if np.any(unhomed_boxes):
+                return False
+        return True
 
-    def _check_if_maxsteps(self):
-        return (self.max_steps == self.num_env_steps)
+
 
     def reset(self, seed=None, options={}, second_player=False, render_mode='rgb_array'):
         try:
@@ -226,7 +220,7 @@ class SokobanEnv(gym.Env):
             print("[SOKOBAN] Retry . . .")
             return self.reset(seed, second_player=second_player, render_mode=render_mode)
 
-        self.player_position = np.argwhere(self.room_state == 5)[0]
+        self.player_position = np.argwhere(self.room_state == "@")[0]
         self.num_env_steps = 0
         self.reward_last = 0
         self.boxes_on_target = 0
@@ -234,12 +228,12 @@ class SokobanEnv(gym.Env):
         starting_observation = self.get_image()
         return starting_observation, {}
 
-    def render(self):
+    def render(self, scale=1):
         img = self.get_image()
 
         # repeat to scale up
-        img = np.repeat(img, self.scale, axis=0)
-        img = np.repeat(img, self.scale, axis=1)
+        img = np.repeat(img, scale, axis=0)
+        img = np.repeat(img, scale, axis=1)
 
         return img
 

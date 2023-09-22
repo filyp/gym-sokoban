@@ -57,33 +57,28 @@ def room_to_rgb(room, room_structure=None):
     return room_rgb
 
 
-def room_to_tiny_world_rgb(room, room_structure=None, scale=1):
-
-    room = np.array(room)
-    if not room_structure is None:
-        # Change the ID of a player on a target
-        room[(room == 5) & (room_structure == 2)] = 6
-
-    wall = [0, 0, 0]
-    floor = [243, 248, 238]
-    box_target = [254, 126, 125]
-    box_on_target = [254, 95, 56]
-    box = [142, 121, 56]
-    player = [160, 212, 56]
-    player_on_target = [219, 212, 56]
-
-    surfaces = [wall, floor, box_target, box_on_target, box, player, player_on_target]
+def room_to_tiny_world_rgb(room, room_structure=None):
+    colors = {
+        " ": np.array([0, 0, 0]),
+        "#": np.array([127, 127, 127]), # needs to be 255 divided by 2, because # is in both layers
+        "@": np.array([200, 200, 200]),
+        "a": np.array([55, 0, 0]),
+        "b": np.array([0, 55, 0]),
+        "c": np.array([0, 0, 55]),
+        "A": np.array([200, 0, 0]),
+        "B": np.array([0, 200, 0]),
+        "C": np.array([0, 0, 200]),
+        "X": np.array([100, 100, 100]),
+    }
 
     # Assemble the new rgb_room, with all loaded images
-    room_small_rgb = np.zeros(shape=(room.shape[0]*scale, room.shape[1]*scale, 3), dtype=np.uint8)
+    room_small_rgb = np.zeros(shape=(room.shape[0], room.shape[1], 3))
     for i in range(room.shape[0]):
-        x_i = i * scale
         for j in range(room.shape[1]):
-            y_j = j * scale
-            surfaces_id = int(room[i, j])
-            room_small_rgb[x_i:(x_i+scale), y_j:(y_j+scale), :] = np.array(surfaces[surfaces_id])
+            room_small_rgb[i, j, :] += colors[room[i, j]]
+            room_small_rgb[i, j, :] += colors[room_structure[i, j]]
 
-    return room_small_rgb
+    return np.array(room_small_rgb, dtype=np.uint8)
 
 
 def room_to_rgb_FT(room, box_mapping, room_structure=None):
