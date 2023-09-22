@@ -118,5 +118,9 @@
   {
     "id": "Boxoban-Val-v1",
     "entry_point": "gym_sokoban.envs:Boxban_Env1_val"
+  },
+  {
+    "id": "SokobanUncertain",
+    "entry_point": "gym_sokoban.envs.sokoban_uncertain:SokobanUncertainEnv"
   }
 ]
