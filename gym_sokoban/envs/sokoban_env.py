@@ -86,13 +86,9 @@ class SokobanEnv(gym.Env):
         if done:
             # info["maxsteps_used"] = self._check_if_maxsteps()
             info["all_boxes_on_target"] = True
-            self.when_done_callback()
 
         return observation, self.reward_last, done, False, info
     
-    def when_done_callback(self):
-        pass
-
     def _push(self, action):
         """
         Perform a push, if a box is adjacent in the right direction.
@@ -249,15 +245,16 @@ class SokobanEnv(gym.Env):
 
 
 ACTION_LOOKUP = {
-    0: 'no operation',
-    1: 'push up',
-    2: 'push down',
-    3: 'push left',
-    4: 'push right',
-    5: 'move up',
-    6: 'move down',
-    7: 'move left',
-    8: 'move right',
+    0: 'push up',
+    1: 'push down',
+    2: 'push left',
+    3: 'push right',
+    # 4: 'no operation',
+
+    # 5: 'move up',
+    # 6: 'move down',
+    # 7: 'move left',
+    # 8: 'move right',
 }
 
 # Moves are mapped to coordinate changes as follows

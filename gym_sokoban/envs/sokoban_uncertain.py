@@ -146,6 +146,7 @@ class SokobanUncertainEnv(SokobanEnv):
         # self.max_episode_steps = 10  # TODO should be fetched from gym
 
         self.map_selector = map_selector
+        self.map_index = None
 
         self.verbose = False
         super(SokobanUncertainEnv, self).__init__(
@@ -153,6 +154,10 @@ class SokobanUncertainEnv(SokobanEnv):
         )
 
     def reset(self, seed=None, options={}):
+        # first, try to save the score of the previous map
+        if self.map_index is not None:
+            self.map_selector.curriculum_scores[self.map_index] = self.num_env_steps
+
         if seed is not None:
             np.random.seed(seed)
         self.select_room()
@@ -193,5 +198,3 @@ class SokobanUncertainEnv(SokobanEnv):
         assert self.room_fixed.shape == self.dim_room
         assert self.room_state.shape == self.dim_room
 
-    def when_done_callback(self):
-        self.map_selector.curriculum_scores[self.map_index] = self.num_env_steps
