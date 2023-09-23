@@ -9,8 +9,7 @@ import numpy as np
 class SokobanEnv(gym.Env):
     def __init__(self,
                  dim_room=(7, 7),
-                #  max_steps=120, # this has no effect now
-                 num_boxes=4,
+                 num_boxes_to_generate=4,
                  use_tiny_world=True,
                  num_gen_steps=None,
                  render_mode='rgb_array',
@@ -28,7 +27,7 @@ class SokobanEnv(gym.Env):
         else:
             self.num_gen_steps = num_gen_steps
 
-        self.num_boxes = num_boxes
+        self.num_boxes_to_generate = num_boxes_to_generate
         self.boxes_on_target = 0
 
         # Rendering variables
@@ -39,7 +38,7 @@ class SokobanEnv(gym.Env):
         self.clock = None
 
         # Penalties and Rewards
-        self.penalty_for_step = -0.5
+        self.penalty_for_step = -0.1
         self.penalty_box_off_target = -1
         self.reward_box_on_target = 1
         self.reward_finished = 10
@@ -121,24 +120,25 @@ class SokobanEnv(gym.Env):
                 or new_box_position[1] >= self.room_state.shape[1]:
             return False, False
 
-        can_push_box = self.room_state[new_position[0], new_position[1]] in ["A", "B", "C"]
-        can_push_box &= self.room_state[new_box_position[0], new_box_position[1]] == " " and self.room_fixed[new_box_position[0], new_box_position[1]] != "#"
+        can_push_box = self.room_state[*new_position] in ["A", "B", "C"]
+        can_push_box &= self.room_state[*new_box_position] == " "
+        can_push_box &= self.room_fixed[*new_box_position] != "#"
         if can_push_box:
-            box_type = self.room_state[new_position[0], new_position[1]]
+            box_type = self.room_state[*new_position]
 
             self.new_box_position = tuple(new_box_position)
             self.old_box_position = tuple(new_position)
 
             # Move Player
             self.player_position = new_position
-            self.room_state[(new_position[0], new_position[1])] = "@"
-            self.room_state[current_position[0], current_position[1]] = " "
+            self.room_state[*new_position] = "@"
+            self.room_state[*current_position] = " "
 
             # Move Box
             # box_type = 4
             # if self.room_fixed[new_box_position[0], new_box_position[1]] == 2:
             #     box_type = 3
-            self.room_state[new_box_position[0], new_box_position[1]] = box_type
+            self.room_state[*new_box_position] = box_type
             return True, True
 
         # Try to move if no box to push, available
@@ -157,10 +157,10 @@ class SokobanEnv(gym.Env):
 
         # Move player if the field in the moving direction is either
         # an empty field or an empty box target.
-        if self.room_state[new_position[0], new_position[1]] == " " and self.room_fixed[new_position[0], new_position[1]] != "#":
+        if self.room_state[*new_position] == " " and self.room_fixed[*new_position] != "#":
             self.player_position = new_position
-            self.room_state[(new_position[0], new_position[1])] = "@"
-            self.room_state[current_position[0], current_position[1]] = " "
+            self.room_state[*new_position] = "@"
+            self.room_state[*current_position] = " "
 
             return True
 
@@ -176,12 +176,12 @@ class SokobanEnv(gym.Env):
         self.reward_last = self.penalty_for_step
 
         # count boxes off or on the target
-        empty_targets = self.room_state == 2
-        player_on_target = (self.room_fixed == 2) & (self.room_state == 5)
-        total_targets = empty_targets | player_on_target
-
-        current_boxes_on_target = self.num_boxes - \
-                                  np.where(total_targets)[0].shape[0]
+        current_boxes_on_target = 0
+        for box_type in ["A", "B", "C"]:
+            boxes = box_type == self.room_state
+            targets = box_type.lower() == self.room_fixed
+            homed_boxes = boxes & targets
+            current_boxes_on_target += np.sum(homed_boxes)
 
         # Add the reward if a box is pushed on the target and give a
         # penalty if a box is pushed off the target.
@@ -205,14 +205,12 @@ class SokobanEnv(gym.Env):
                 return False
         return True
 
-
-
     def reset(self, seed=None, options={}, second_player=False, render_mode='rgb_array'):
         try:
             self.room_fixed, self.room_state, self.box_mapping = generate_room(
                 dim=self.dim_room,
                 num_steps=self.num_gen_steps,
-                num_boxes=self.num_boxes,
+                num_boxes=self.num_boxes_to_generate,
                 second_player=second_player
             )
         except (RuntimeError, RuntimeWarning) as e:

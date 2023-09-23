@@ -79,8 +79,6 @@ class SokobanUncertainEnv(SokobanEnv):
 
         self.verbose = False
         super(SokobanUncertainEnv, self).__init__(
-            dim_room=(7, 7),
-            num_boxes=4,
             **kwargs,
         )
 
