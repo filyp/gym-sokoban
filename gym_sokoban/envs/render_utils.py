@@ -60,7 +60,7 @@ def room_to_rgb(room, room_structure=None):
 def room_to_tiny_world_rgb(room, room_structure=None):
     colors = {
         " ": np.array([0, 0, 0]),
-        "#": np.array([127, 127, 127]), # needs to be 255 divided by 2, because # is in both layers
+        "#": np.array([255, 255, 255]),
         "@": np.array([200, 200, 200]),
         "a": np.array([55, 0, 0]),
         "b": np.array([0, 55, 0]),

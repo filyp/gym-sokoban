@@ -122,7 +122,7 @@ class SokobanEnv(gym.Env):
             return False, False
 
         can_push_box = self.room_state[new_position[0], new_position[1]] in ["A", "B", "C"]
-        can_push_box &= self.room_state[new_box_position[0], new_box_position[1]] == " "
+        can_push_box &= self.room_state[new_box_position[0], new_box_position[1]] == " " and self.room_fixed[new_box_position[0], new_box_position[1]] != "#"
         if can_push_box:
             box_type = self.room_state[new_position[0], new_position[1]]
 
@@ -157,7 +157,7 @@ class SokobanEnv(gym.Env):
 
         # Move player if the field in the moving direction is either
         # an empty field or an empty box target.
-        if self.room_state[new_position[0], new_position[1]] == " ":
+        if self.room_state[new_position[0], new_position[1]] == " " and self.room_fixed[new_position[0], new_position[1]] != "#":
             self.player_position = new_position
             self.room_state[(new_position[0], new_position[1])] = "@"
             self.room_state[current_position[0], current_position[1]] = " "
@@ -228,12 +228,8 @@ class SokobanEnv(gym.Env):
         starting_observation = self.get_image()
         return starting_observation, {}
 
-    def render(self, scale=1):
+    def render(self):
         img = self.get_image()
-
-        # repeat to scale up
-        img = np.repeat(img, scale, axis=0)
-        img = np.repeat(img, scale, axis=1)
 
         return img
 

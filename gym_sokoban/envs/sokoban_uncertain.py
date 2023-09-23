@@ -114,7 +114,7 @@ class SokobanUncertainEnv(SokobanEnv):
             for e in row:
                 if e == "#":
                     room_f.append("#")
-                    room_s.append("#")
+                    room_s.append(" ")
 
                 elif e == "@":
                     room_f.append(" ")
