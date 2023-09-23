@@ -36,10 +36,10 @@ class SokobanEnv(gym.Env):
         self.clock = None
 
         # Penalties and Rewards
-        self.penalty_for_step = -0.1
+        self.penalty_for_step = -0.3
         self.penalty_box_off_target = -1
         self.reward_box_on_target = 1
-        self.reward_finished = 10
+        self.reward_finished = 1
         self.reward_last = 0
 
         # Other Settings
@@ -197,7 +197,9 @@ class SokobanEnv(gym.Env):
         return True
 
     def reset(self, seed=None, options={}, second_player=False, render_mode='rgb_array'):
-        np.random.seed(seed)
+        if seed is not None:
+            np.random.seed(seed)
+
         try:
             self.room_fixed, self.room_state, self.box_mapping = generate_room(
                 dim=self.dim_room,

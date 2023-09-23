@@ -12,44 +12,114 @@ from .render_utils import room_to_rgb, room_to_tiny_world_rgb
 from .sokoban_env import SokobanEnv
 
 
+def generate_room_from_ascii(ascii_map):
+    room_fixed = []
+    room_state = []
+
+    targets = []
+    boxes = []
+    for row in ascii_map:
+        room_f = []
+        room_s = []
+
+        for e in row:
+            if e == "#":
+                room_f.append("#")
+                room_s.append(" ")
+
+            elif e == "@":
+                room_f.append(" ")
+                room_s.append("@")
+
+            elif e == "A":
+                boxes.append((len(room_fixed), len(room_f)))
+                room_f.append(" ")
+                room_s.append("A")
+            elif e == "a":
+                targets.append((len(room_fixed), len(room_f)))
+                room_f.append("a")
+                room_s.append(" ")
+
+            elif e == "B":
+                boxes.append((len(room_fixed), len(room_f)))
+                room_f.append(" ")
+                room_s.append("B")
+            elif e == "b":
+                targets.append((len(room_fixed), len(room_f)))
+                room_f.append("b")
+                room_s.append(" ")
+
+            elif e == "C":
+                boxes.append((len(room_fixed), len(room_f)))
+                room_f.append(" ")
+                room_s.append("C")
+            elif e == "c":
+                targets.append((len(room_fixed), len(room_f)))
+                room_f.append("c")
+                room_s.append(" ")
+
+            elif e == " ":
+                room_f.append(" ")
+                room_s.append(" ")
+
+            else:
+                raise Exception("Unknown map element: {}".format(e))
+
+        room_fixed.append(room_f)
+        room_state.append(room_s)
+
+    # used for replay in room generation, unused here because pre-generated levels
+    room_fixed = np.array(room_fixed, dtype="U1")
+    room_state = np.array(room_state, dtype="U1")
+    return room_fixed, room_state
+
+
+
+
 class MapSelector:
     def __init__(self, custom_maps, curriculum_cutoff=1, hardcode_level=None):
         self.train_data_dir = custom_maps
-        self.curriculum_scores = [100] * curriculum_cutoff
-        # TODO rather than hardcoding 100, better to use the max_episode_steps from gym
+        self.curriculum_scores = [10] * curriculum_cutoff
+        # TODO rather than hardcoding 10, better to use the max_episode_steps from gym
         self.hardcode_level = hardcode_level
 
-    def select_room(self):
         generated_files = [f for f in listdir(self.train_data_dir) if isfile(join(self.train_data_dir, f))]
         source_file = join(self.train_data_dir, random.choice(generated_files))
 
-        maps = []
+        ascii_maps = []
         current_map = []
-
         with open(source_file, "r") as sf:
             for line in sf.readlines():
-                if ";" in line and current_map:
-                    maps.append(current_map)
-                    current_map = []
                 if "#" == line[0]:
                     current_map.append(line.strip())
+                else:
+                    if current_map:
+                        ascii_maps.append(current_map)
+                        current_map = []
+        if current_map:
+            ascii_maps.append(current_map)
+        
+        self.maps = [generate_room_from_ascii(am) for am in ascii_maps]
 
-        maps.append(current_map)
 
+    def select_room(self):
         if self.hardcode_level is not None:
             map_index = self.hardcode_level
         else:
             # clip curriculum scores to the number of maps persisently
-            if len(self.curriculum_scores) > len(maps):
-                self.curriculum_scores = self.curriculum_scores[: len(maps)]
+            if len(self.curriculum_scores) > len(self.maps):
+                self.curriculum_scores = self.curriculum_scores[: len(self.maps)]
 
-            # choose map with probability proportional to the score**2
-            _sc = (np.array(self.curriculum_scores)) ** 2
-            probs = _sc / np.sum(_sc)
-            map_index = np.random.choice(
-                len(self.curriculum_scores),
-                p=probs,
-            )
+            # # choose map with probability proportional to the score**2
+            # _sc = (np.array(self.curriculum_scores)) ** 1
+            # probs = _sc / np.sum(_sc)
+            # map_index = np.random.choice(
+            #     len(self.curriculum_scores),
+            #     p=probs,
+            # )
+            
+            # choose map randomly
+            map_index = np.random.choice(len(self.curriculum_scores))
 
         # # with probability epsilon choose a random map
         # # otherwise choose among the unsolved maps
@@ -66,9 +136,9 @@ class MapSelector:
         #         map_index = np.random.choice(maps_to_choose_from)
 
         # print(map_index)
-        selected_map = maps[map_index]
+        room_fixed, room_state = self.maps[map_index]
 
-        return selected_map, map_index
+        return room_fixed.copy(), room_state.copy(), map_index
 
 
 class SokobanUncertainEnv(SokobanEnv):
@@ -83,8 +153,8 @@ class SokobanUncertainEnv(SokobanEnv):
         )
 
     def reset(self, seed=None, options={}):
-        # TODO seeding seems to not work 
-        np.random.seed(seed)
+        if seed is not None:
+            np.random.seed(seed)
         self.select_room()
 
         self.num_env_steps = 0
@@ -96,71 +166,7 @@ class SokobanUncertainEnv(SokobanEnv):
         return starting_observation, {}
 
     def select_room(self):
-        selected_map, self.map_index = self.map_selector.select_room()
-
-        self.room_fixed, self.room_state, self.box_mapping = self.generate_room(selected_map)
-        assert self.room_fixed.shape == self.dim_room
-
-    def generate_room(self, select_map):
-        room_fixed = []
-        room_state = []
-
-        targets = []
-        boxes = []
-        for row in select_map:
-            room_f = []
-            room_s = []
-
-            for e in row:
-                if e == "#":
-                    room_f.append("#")
-                    room_s.append(" ")
-
-                elif e == "@":
-                    room_f.append(" ")
-                    room_s.append("@")
-
-                elif e == "A":
-                    boxes.append((len(room_fixed), len(room_f)))
-                    room_f.append(" ")
-                    room_s.append("A")
-                elif e == "a":
-                    targets.append((len(room_fixed), len(room_f)))
-                    room_f.append("a")
-                    room_s.append(" ")
-
-                elif e == "B":
-                    boxes.append((len(room_fixed), len(room_f)))
-                    room_f.append(" ")
-                    room_s.append("B")
-                elif e == "b":
-                    targets.append((len(room_fixed), len(room_f)))
-                    room_f.append("b")
-                    room_s.append(" ")
-
-                elif e == "C":
-                    boxes.append((len(room_fixed), len(room_f)))
-                    room_f.append(" ")
-                    room_s.append("C")
-                elif e == "c":
-                    targets.append((len(room_fixed), len(room_f)))
-                    room_f.append("c")
-                    room_s.append(" ")
-
-                elif e == " ":
-                    room_f.append(" ")
-                    room_s.append(" ")
-
-                else:
-                    raise Exception("Unknown map element: {}".format(e))
-
-            room_fixed.append(room_f)
-            room_state.append(room_s)
-
-        # used for replay in room generation, unused here because pre-generated levels
-        box_mapping = {}
-        room_fixed = np.array(room_fixed, dtype="U1")
-        room_state = np.array(room_state, dtype="U1")
+        room_fixed, room_state, self.map_index = self.map_selector.select_room()
 
         # random flip
         if np.random.choice([True, False]):
@@ -180,7 +186,12 @@ class SokobanUncertainEnv(SokobanEnv):
 
         # check at which index in room_state 5 (player) is
         self.player_position = np.argwhere(room_state == "@")[0]
-        return room_fixed, room_state, box_mapping
+
+        self.room_fixed = room_fixed
+        self.room_state = room_state
+        self.box_mapping = {}
+        assert self.room_fixed.shape == self.dim_room
+        assert self.room_state.shape == self.dim_room
 
     def when_done_callback(self):
         self.map_selector.curriculum_scores[self.map_index] = self.num_env_steps
