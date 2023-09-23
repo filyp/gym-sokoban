@@ -58,17 +58,20 @@ def room_to_rgb(room, room_structure=None):
 
 
 def room_to_tiny_world_rgb(room, room_structure=None):
+    goal1 = np.array([225, 255, 0])  # yellow
+    goal2 = np.array([0, 255, 0])    # green
+    goal3 = np.array([0, 255, 255])  # sky blue
     colors = {
         " ": np.array([0, 0, 0]),
         "#": np.array([255, 255, 255]),
-        "@": np.array([200, 200, 200]),
-        "a": np.array([55, 0, 0]),
-        "b": np.array([0, 55, 0]),
-        "c": np.array([0, 0, 55]),
-        "A": np.array([200, 0, 0]),
-        "B": np.array([0, 200, 0]),
-        "C": np.array([0, 0, 200]),
-        "X": np.array([100, 100, 100]),
+        "@": np.array([255, 0, 0]),  # red
+        "a": goal1 * 0.33,
+        "b": goal2 * 0.33,
+        "c": goal3 * 0.33,
+        "A": goal1 * 0.66,
+        "B": goal2 * 0.66,
+        "C": goal3 * 0.66,
+        "X": np.array([143, 0, 255]),  # purple
     }
 
     # Assemble the new rgb_room, with all loaded images
@@ -77,6 +80,9 @@ def room_to_tiny_world_rgb(room, room_structure=None):
         for j in range(room.shape[1]):
             room_small_rgb[i, j, :] += colors[room[i, j]]
             room_small_rgb[i, j, :] += colors[room_structure[i, j]]
+            if room[i, j] == "@" and room_structure[i, j] != " ":
+                # special case - when player on goal, we have to normalize
+                room_small_rgb[i, j, :] /= room_small_rgb[i, j, :].max() / 255
 
     return np.array(room_small_rgb, dtype=np.uint8)
 

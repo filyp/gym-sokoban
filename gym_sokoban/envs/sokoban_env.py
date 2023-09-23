@@ -1,5 +1,4 @@
 import gymnasium as gym
-from gymnasium.utils import seeding
 from gymnasium.spaces.discrete import Discrete
 from gymnasium.spaces import Box
 from .room_utils import generate_room
@@ -12,8 +11,7 @@ class SokobanEnv(gym.Env):
                  num_boxes_to_generate=4,
                  use_tiny_world=True,
                  num_gen_steps=None,
-                 render_mode='rgb_array',
-                 reset=True):
+                 render_mode='rgb_array'):
 
         self.metadata = {
             'render_modes': ['rgb_array'],
@@ -51,13 +49,6 @@ class SokobanEnv(gym.Env):
         self.action_space = Discrete(len(ACTION_LOOKUP))
         self.observation_space = Box(low=0, high=255, shape=(dim_room[0]-2, dim_room[1]-2, 3), dtype=np.uint8)
         
-        if reset:
-            # Initialize Room
-            _ = self.reset()
-
-    def seed(self, seed=None):
-        self.np_random, seed = seeding.np_random(seed)
-        return [seed]
 
     def step(self, action, observation_mode='rgb_array'):
         assert action in ACTION_LOOKUP
@@ -206,6 +197,7 @@ class SokobanEnv(gym.Env):
         return True
 
     def reset(self, seed=None, options={}, second_player=False, render_mode='rgb_array'):
+        np.random.seed(seed)
         try:
             self.room_fixed, self.room_state, self.box_mapping = generate_room(
                 dim=self.dim_room,

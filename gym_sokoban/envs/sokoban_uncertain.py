@@ -82,7 +82,9 @@ class SokobanUncertainEnv(SokobanEnv):
             **kwargs,
         )
 
-    def reset(self):
+    def reset(self, seed=None, options={}):
+        # TODO seeding seems to not work 
+        np.random.seed(seed)
         self.select_room()
 
         self.num_env_steps = 0
@@ -168,6 +170,13 @@ class SokobanUncertainEnv(SokobanEnv):
         _rot = np.random.choice([0, 1, 2, 3])
         room_fixed = np.rot90(room_fixed, k=_rot)
         room_state = np.rot90(room_state, k=_rot)
+        # randomly permute colors
+        old_room_fixed = room_fixed.copy()
+        old_room_state = room_state.copy()
+        permutation = np.random.permutation(["a", "b", "c"])
+        for from_color, to_color in zip(["a", "b", "c"], permutation):
+            room_fixed[old_room_fixed == from_color] = to_color
+            room_state[old_room_state == from_color.upper()] = to_color.upper()
 
         # check at which index in room_state 5 (player) is
         self.player_position = np.argwhere(room_state == "@")[0]
