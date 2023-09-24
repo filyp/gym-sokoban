@@ -2,7 +2,7 @@ import gymnasium as gym
 from gymnasium.spaces.discrete import Discrete
 from gymnasium.spaces import Box
 from .room_utils import generate_room
-from .render_utils import room_to_rgb, room_to_tiny_world_rgb, room_to_one_hot
+from .render_utils import room_to_tiny_world_rgb, room_to_one_hot
 import numpy as np
 
 class SokobanEnv(gym.Env):
