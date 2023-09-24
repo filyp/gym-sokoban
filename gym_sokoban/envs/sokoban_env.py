@@ -5,17 +5,12 @@ from .room_utils import generate_room
 from .render_utils import room_to_tiny_world_rgb, room_to_one_hot
 import numpy as np
 
-class SokobanEnv(gym.Env):
-    def __init__(self,
-                 dim_room=(7, 7),
-                 num_boxes_to_generate=4,
-                 num_gen_steps=None,
-                 render_mode='rgb_array'):
 
-        self.metadata = {
-            'render_modes': ['rgb_array'],
-            'render_fps': 4
-        }
+class SokobanEnv(gym.Env):
+    def __init__(
+        self, dim_room=(7, 7), num_boxes_to_generate=4, num_gen_steps=None, render_mode="rgb_array"
+    ):
+        self.metadata = {"render_modes": ["rgb_array"], "render_fps": 4}
 
         # General Configuration
         self.dim_room = dim_room
@@ -45,11 +40,13 @@ class SokobanEnv(gym.Env):
         self.viewer = None
         # self.max_steps = max_steps
         self.action_space = Discrete(len(ACTION_LOOKUP))
-        self.observation_space = Box(low=0, high=255, shape=(dim_room[0]-2, dim_room[1]-2, 10), dtype=np.uint8)
-        
-    def step(self, action, observation_mode='rgb_array'):
+        self.observation_space = Box(
+            low=0, high=255, shape=(dim_room[0] - 2, dim_room[1] - 2, 10), dtype=np.uint8
+        )
+
+    def step(self, action, observation_mode="rgb_array"):
         assert action in ACTION_LOOKUP
-        assert observation_mode in ['rgb_array', 'tiny_rgb_array', 'raw']
+        assert observation_mode in ["rgb_array", "tiny_rgb_array", "raw"]
 
         self.num_env_steps += 1
 
@@ -69,7 +66,7 @@ class SokobanEnv(gym.Env):
             moved_player = self._move(action)
 
         self._calc_reward()
-        
+
         done = self._check_if_all_boxes_on_target()
 
         # Convert the observation to RGB frame
@@ -86,7 +83,7 @@ class SokobanEnv(gym.Env):
             info["all_boxes_on_target"] = True
 
         return observation, self.reward_last, done, False, info
-    
+
     def _push(self, action):
         """
         Perform a push, if a box is adjacent in the right direction.
@@ -101,8 +98,10 @@ class SokobanEnv(gym.Env):
         # No push, if the push would get the box out of the room's grid
         # this section if probably unneeded bc we have the boundary walls
         new_box_position = new_position + change
-        if new_box_position[0] >= self.room_state.shape[0] \
-                or new_box_position[1] >= self.room_state.shape[1]:
+        if (
+            new_box_position[0] >= self.room_state.shape[0]
+            or new_box_position[1] >= self.room_state.shape[1]
+        ):
             return False, False
 
         can_push_box = self.room_state[*new_position] in ["A", "B", "C"]
@@ -174,11 +173,11 @@ class SokobanEnv(gym.Env):
             self.reward_last += self.reward_box_on_target
         elif current_boxes_on_target < self.boxes_on_target:
             self.reward_last += self.penalty_box_off_target
-        
-        game_won = self._check_if_all_boxes_on_target()        
+
+        game_won = self._check_if_all_boxes_on_target()
         if game_won:
             self.reward_last += self.reward_finished
-        
+
         self.boxes_on_target = current_boxes_on_target
 
     def _check_if_all_boxes_on_target(self):
@@ -190,7 +189,7 @@ class SokobanEnv(gym.Env):
                 return False
         return True
 
-    def reset(self, seed=None, options={}, second_player=False, render_mode='rgb_array'):
+    def reset(self, seed=None, options={}, second_player=False, render_mode="rgb_array"):
         if seed is not None:
             np.random.seed(seed)
 
@@ -199,7 +198,7 @@ class SokobanEnv(gym.Env):
                 dim=self.dim_room,
                 num_steps=self.num_gen_steps,
                 num_boxes=self.num_boxes_to_generate,
-                second_player=second_player
+                second_player=second_player,
             )
         except (RuntimeError, RuntimeWarning) as e:
             print("[SOKOBAN] Runtime Error/Warning: {}".format(e))
@@ -237,12 +236,11 @@ class SokobanEnv(gym.Env):
 
 
 ACTION_LOOKUP = {
-    0: 'no operation',
-    1: 'push up',
-    2: 'push down',
-    3: 'push left',
-    4: 'push right',
-
+    0: "no operation",
+    1: "push up",
+    2: "push down",
+    3: "push left",
+    4: "push right",
     # 5: 'move up',
     # 6: 'move down',
     # 7: 'move left',
@@ -254,11 +252,6 @@ ACTION_LOOKUP = {
 # 1: Move down
 # 2: Move left
 # 3: Move right
-CHANGE_COORDINATES = {
-    0: (-1, 0),
-    1: (1, 0),
-    2: (0, -1),
-    3: (0, 1)
-}
+CHANGE_COORDINATES = {0: (-1, 0), 1: (1, 0), 2: (0, -1), 3: (0, 1)}
 
-RENDERING_MODES = ['rgb_array', 'human', 'tiny_rgb_array', 'tiny_human', 'raw']
+RENDERING_MODES = ["rgb_array", "human", "tiny_rgb_array", "tiny_human", "raw"]
