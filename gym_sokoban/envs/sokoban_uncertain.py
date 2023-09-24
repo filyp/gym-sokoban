@@ -74,13 +74,23 @@ def generate_room_from_ascii(ascii_map):
 
 
 class MapSelector:
-    def __init__(self, custom_maps, curriculum_cutoff=1, hardcode_level=None):
+    def __init__(
+        self,
+        custom_maps,
+        curriculum_cutoff=None,
+        hardcode_level=None,
+        challenging_threshold=9,
+        p_random_map=0.2,
+    ):
         self.train_data_dir = custom_maps
-        self.curriculum_scores = [10] * curriculum_cutoff
         # TODO rather than hardcoding 10, better to use the max_episode_steps from gym
         self.hardcode_level = hardcode_level
+        self.challenging_threshold = challenging_threshold
+        self.p_random_map = p_random_map
 
-        generated_files = [f for f in listdir(self.train_data_dir) if isfile(join(self.train_data_dir, f))]
+        generated_files = [
+            f for f in listdir(self.train_data_dir) if isfile(join(self.train_data_dir, f))
+        ]
         source_file = join(self.train_data_dir, random.choice(generated_files))
 
         ascii_maps = []
@@ -123,25 +133,27 @@ class MapSelector:
 
                         self.maps.append((room_fixed, room_state))
 
+        self.curriculum_scores = [10] * len(self.maps)
+        if curriculum_cutoff is None:
+            self.curriculum_cutoff = len(self.maps)
+        else:
+            self.curriculum_cutoff = curriculum_cutoff
+
     def select_room(self):
         if self.hardcode_level is not None:
             map_index = self.hardcode_level
         else:
-            # clip curriculum scores to the number of maps persisently
-            if len(self.curriculum_scores) > len(self.maps):
-                self.curriculum_scores = self.curriculum_scores[: len(self.maps)]
-
-            # with probability 0.1 choose random map
-            if np.random.rand() < 0.1:
-                map_index = np.random.choice(len(self.curriculum_scores))
+            # with some probability choose random map
+            if np.random.rand() < self.p_random_map:
+                map_index = np.random.choice(self.curriculum_cutoff)
             else:
-                # with probability 0.9 choose some challenging map
+                # otherwise choose challenging map
                 for _ in range(40):
                     # choose map randomly
-                    map_index = np.random.choice(len(self.curriculum_scores))
+                    map_index = np.random.choice(self.curriculum_cutoff)
                     score = self.curriculum_scores[map_index]
                     # choose that map only if it's challenging
-                    if score > 4:
+                    if score > self.challenging_threshold:
                         break
 
         # print(map_index)
@@ -149,14 +161,21 @@ class MapSelector:
 
         return room_fixed.copy(), room_state.copy(), map_index
 
+    def grow_curriculum(self, n):
+        self.curriculum_cutoff = min(len(self.maps), self.curriculum_cutoff + n)
 
-class SokobanEnvUncertain(gym.Env):
-    def __init__(self, map_selector, dim_room=(7, 7)):
+
+class SokobanUncertainEnv(gym.Env):
+    def __init__(
+        self, map_selector, dim_room=(7, 7), num_uncertain_steps=5, p_complete_certainty=0.25
+    ):
         # General Configuration
-        self.dim_room = dim_room
         self.map_selector = map_selector
-        self.metadata = {"render_modes": ["rgb_array"], "render_fps": 4}
+        self.dim_room = dim_room
+        self.num_uncertain_steps = num_uncertain_steps
+        self.p_complete_certainty = p_complete_certainty
 
+        self.metadata = {"render_modes": ["rgb_array"], "render_fps": 4}
         self.map_index = None
 
         # Penalties and Rewards
@@ -168,7 +187,9 @@ class SokobanEnvUncertain(gym.Env):
 
         # Other Settings
         self.action_space = Discrete(len(ACTION_LOOKUP))
-        self.observation_space = Box(low=0, high=255, shape=(dim_room[0] - 2, dim_room[1] - 2, 10), dtype=np.uint8)
+        self.observation_space = Box(
+            low=0, high=255, shape=(dim_room[0] - 2, dim_room[1] - 2, 11), dtype=np.uint8
+        )
 
     def select_room(self):
         room_fixed, room_state, self.map_index = self.map_selector.select_room()
@@ -195,9 +216,37 @@ class SokobanEnvUncertain(gym.Env):
         self.reward_last = 0
         self.boxes_on_target = 0
 
+        # in some episodes we want complete certainty,
+        # so that the agent can learn to solve colored sokoban
+        self.complete_certainty = np.random.rand() < self.p_complete_certainty
+
         starting_observation = self.get_observation()
 
         return starting_observation, {}
+
+    def fog_of_uncertainty(self):
+        if self.complete_certainty or self.num_env_steps >= self.num_uncertain_steps:
+            return self.room_state
+        else:
+            # mask the colors of the boxes by replacing A, B, C with X
+            masked_state = self.room_state.copy()
+            masked_state[masked_state == "A"] = "X"
+            masked_state[masked_state == "B"] = "X"
+            masked_state[masked_state == "C"] = "X"
+            return masked_state
+
+    def render(self):
+        perceived_state = self.fog_of_uncertainty()
+        img = room_to_tiny_world_rgb(perceived_state, self.room_fixed)
+        # cut off the borders
+        img = img[1:-1, 1:-1, :]
+        return img
+
+    def get_observation(self):
+        perceived_state = self.fog_of_uncertainty()
+        obs = room_to_one_hot(perceived_state, self.room_fixed)
+        obs = obs[1:-1, 1:-1, :]
+        return obs
 
     def step(self, action, observation_mode="rgb_array"):
         assert action in ACTION_LOOKUP
@@ -248,7 +297,10 @@ class SokobanEnvUncertain(gym.Env):
         # No push, if the push would get the box out of the room's grid
         # this section if probably unneeded bc we have the boundary walls
         new_box_position = new_position + change
-        if new_box_position[0] >= self.room_state.shape[0] or new_box_position[1] >= self.room_state.shape[1]:
+        if (
+            new_box_position[0] >= self.room_state.shape[0]
+            or new_box_position[1] >= self.room_state.shape[1]
+        ):
             return False, False
 
         can_push_box = self.room_state[*new_position] in ["A", "B", "C"]
@@ -333,17 +385,6 @@ class SokobanEnvUncertain(gym.Env):
                 return False
         return True
 
-    def render(self):
-        img = room_to_tiny_world_rgb(self.room_state, self.room_fixed)
-        # cut off the borders
-        img = img[1:-1, 1:-1, :]
-        return img
-
-    def get_observation(self):
-        obs = room_to_one_hot(self.room_state, self.room_fixed)
-        obs = obs[1:-1, 1:-1, :]
-        return obs
-
     # def get_action_lookup(self):
     #     return ACTION_LOOKUP
 
@@ -371,4 +412,3 @@ ACTION_LOOKUP = {
 CHANGE_COORDINATES = {0: (-1, 0), 1: (1, 0), 2: (0, -1), 3: (0, 1)}
 
 RENDERING_MODES = ["rgb_array", "human", "tiny_rgb_array", "tiny_human", "raw"]
-
