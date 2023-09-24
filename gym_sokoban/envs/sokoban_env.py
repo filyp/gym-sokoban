@@ -2,14 +2,13 @@ import gymnasium as gym
 from gymnasium.spaces.discrete import Discrete
 from gymnasium.spaces import Box
 from .room_utils import generate_room
-from .render_utils import room_to_rgb, room_to_tiny_world_rgb
+from .render_utils import room_to_rgb, room_to_tiny_world_rgb, room_to_one_hot
 import numpy as np
 
 class SokobanEnv(gym.Env):
     def __init__(self,
                  dim_room=(7, 7),
                  num_boxes_to_generate=4,
-                 use_tiny_world=True,
                  num_gen_steps=None,
                  render_mode='rgb_array'):
 
@@ -43,13 +42,11 @@ class SokobanEnv(gym.Env):
         self.reward_last = 0
 
         # Other Settings
-        self.use_tiny_world = use_tiny_world
         self.viewer = None
         # self.max_steps = max_steps
         self.action_space = Discrete(len(ACTION_LOOKUP))
-        self.observation_space = Box(low=0, high=255, shape=(dim_room[0]-2, dim_room[1]-2, 3), dtype=np.uint8)
+        self.observation_space = Box(low=0, high=255, shape=(dim_room[0]-2, dim_room[1]-2, 10), dtype=np.uint8)
         
-
     def step(self, action, observation_mode='rgb_array'):
         assert action in ACTION_LOOKUP
         assert observation_mode in ['rgb_array', 'tiny_rgb_array', 'raw']
@@ -76,7 +73,8 @@ class SokobanEnv(gym.Env):
         done = self._check_if_all_boxes_on_target()
 
         # Convert the observation to RGB frame
-        observation = self.get_image()
+        # observation = self.get_image()
+        observation = self.get_observation()
 
         info = {
             "action.name": ACTION_LOOKUP[action],
@@ -213,25 +211,19 @@ class SokobanEnv(gym.Env):
         self.reward_last = 0
         self.boxes_on_target = 0
 
-        starting_observation = self.get_image()
+        starting_observation = self.get_observation()
         return starting_observation, {}
 
     def render(self):
-        img = self.get_image()
-
-        return img
-
-    def get_image(self):
-        
-        if self.use_tiny_world:
-            img = room_to_tiny_world_rgb(self.room_state, self.room_fixed)
-        else:
-            img = room_to_rgb(self.room_state, self.room_fixed)
-        
+        img = room_to_tiny_world_rgb(self.room_state, self.room_fixed)
         # cut off the borders
         img = img[1:-1, 1:-1, :]
-
         return img
+
+    def get_observation(self):
+        obs = room_to_one_hot(self.room_state, self.room_fixed)
+        obs = obs[1:-1, 1:-1, :]
+        return obs
 
     def close(self):
         if self.viewer is not None:
@@ -245,11 +237,11 @@ class SokobanEnv(gym.Env):
 
 
 ACTION_LOOKUP = {
-    0: 'push up',
-    1: 'push down',
-    2: 'push left',
-    3: 'push right',
-    # 4: 'no operation',
+    0: 'no operation',
+    1: 'push up',
+    2: 'push down',
+    3: 'push left',
+    4: 'push right',
 
     # 5: 'move up',
     # 6: 'move down',

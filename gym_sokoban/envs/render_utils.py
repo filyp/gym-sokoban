@@ -87,6 +87,24 @@ def room_to_tiny_world_rgb(room, room_structure=None):
     return np.array(room_small_rgb, dtype=np.uint8)
 
 
+def room_to_one_hot(room_state, room_fixed):
+    fixed_positions = " #abc"
+    state_positions = " @ABC"
+
+    # Assemble the new rgb_room, with all loaded images
+    room_one_hot = np.zeros(shape=(room_state.shape[0], room_state.shape[1], 10))
+
+    for i in range(room_state.shape[0]):
+        for j in range(room_state.shape[1]):
+            fixed_index = fixed_positions.index(room_fixed[i, j])
+            room_one_hot[i, j, fixed_index] = 1
+            
+            state_index = state_positions.index(room_state[i, j])
+            room_one_hot[i, j, state_index + 5] = 1
+
+    return np.array(room_one_hot, dtype=np.uint8)
+
+
 def room_to_rgb_FT(room, box_mapping, room_structure=None):
     """
     Creates an RGB image of the room.
