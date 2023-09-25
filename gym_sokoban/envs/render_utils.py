@@ -69,34 +69,49 @@ def room_to_rgb(room, room_structure=None):
     return room_rgb
 
 
-def room_to_tiny_world_rgb(room, room_structure=None):
-    goal1 = np.array([225, 255, 0])  # yellow
+def room_to_tiny_world_rgb(room_state, room_fixed):
+    goal1 = np.array([255, 255, 0])  # yellow
     goal2 = np.array([0, 255, 0])  # green
-    goal3 = np.array([0, 255, 255])  # sky blue
+    goal3 = np.array([0, 190, 255])  # blue
     colors = {
         " ": np.array([0, 0, 0]),
         "#": np.array([255, 255, 255]),
         "@": np.array([255, 0, 0]),  # red
-        "a": goal1 * 0.33,
-        "b": goal2 * 0.33,
-        "c": goal3 * 0.33,
-        "A": goal1 * 0.66,
-        "B": goal2 * 0.66,
-        "C": goal3 * 0.66,
+        "a": goal1 * 0.65,
+        "b": goal2 * 0.65,
+        "c": goal3 * 0.65,
+        "A": goal1 * 0.9,
+        "B": goal2 * 0.9,
+        "C": goal3 * 0.9,
         "X": np.array([143, 0, 255]),  # purple
     }
 
     # Assemble the new rgb_room, with all loaded images
-    room_small_rgb = np.zeros(shape=(room.shape[0], room.shape[1], 3))
-    for i in range(room.shape[0]):
-        for j in range(room.shape[1]):
-            room_small_rgb[i, j, :] += colors[room[i, j]]
-            room_small_rgb[i, j, :] += colors[room_structure[i, j]]
-            if room[i, j] in ["@", "X"] and room_structure[i, j] != " ":
-                # special case - when player or X on goal, we have to normalize
-                room_small_rgb[i, j, :] /= room_small_rgb[i, j, :].max() / 255
+    room_rgb = np.zeros(shape=(room_state.shape[0], room_state.shape[1], 3))
+    for i in range(room_state.shape[0]):
+        for j in range(room_state.shape[1]):
+            state = room_state[i, j]
+            fixed = room_fixed[i, j]
+            if state in ["@", "X"]:
+                room_rgb[i, j, :] = colors[state]
+            elif fixed in ["#"]:
+                room_rgb[i, j, :] = colors[fixed]
+            elif fixed in ["a", "b", "c"] and state in ["A", "B", "C"]:
+                room_rgb[i, j, :] += colors[state]
+                room_rgb[i, j, :] += colors[fixed]
+                room_rgb[i, j, :] /= 0.65 + 0.9    # normalize
+                # if state.lower() != fixed:
+                #     # additionally dim unmatching goals
+                #     room_rgb[i, j, :] *= 0.9
+            elif state in ["A", "B", "C"]:
+                room_rgb[i, j, :] = colors[state]
+            elif fixed in ["a", "b", "c"]:
+                room_rgb[i, j, :] = colors[fixed]
 
-    return np.array(room_small_rgb, dtype=np.uint8)
+    # clip, just to be sure there are no numerical errors
+    room_rgb = np.clip(room_rgb, 0, 255)
+
+    return np.array(room_rgb, dtype=np.uint8)
 
 
 def room_to_one_hot(room_state, room_fixed):
